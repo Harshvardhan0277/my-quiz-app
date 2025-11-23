@@ -1,129 +1,165 @@
-import React, { useEffect, useState } from "react";
-import { ShowResult } from "./ShowResult";
-import { StartQuiz } from "./StartQuiz";
-import { WelcomePage } from "./WelcomePage";
-// import questions from "./questions";
-import "./App.css";
+import React from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import { Container, Box, Typography } from "@mui/material";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faBrain } from "@fortawesome/free-solid-svg-icons";
 
-function App() {
-  const [questions, setQuestions] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [score, setScore] = useState(0);
-  const [showStartPage, setShowStartPage] = useState(true);
-  const [showResult, setShowResult] = useState(false);
-  const [selectedOption, setSelectedOption] = useState(null);
+import { UserProvider, useUser } from "./context/UserContext";
+import LoginPage from "./LoginPage";
+import WelcomePage from "./WelcomePage";
+import CreateQuizPage from "./CreateQuizPage";
+import UserQuizPage from "./UserQuizPage";
+import QuizPage from "./QuizPage";
+import QuizPageDefault from "./QuizPageDefault";
 
-  useEffect(() => {
-  //   fetch("/questions.json")
-  //     .then((res) => res.json())
-  //     .then((data) => setQuestions(data))
-  //     .catch((err) => console.error("Facing error to load questions:", err));
-  // }, []);
+import { cloudioAuth, setCloudioTokens, clearCloudioTokens } from "./cloudioApi";
 
 
-    formatted();  
-  }, []);
+function AppContent() {
+  const { user, login, loading } = useUser();
 
-  const formatted = () => {
-    fetch("https://opentdb.com/api.php?amount=5&category=20&difficulty=medium&type=multiple")
-      .then((res) => res.json())
-      .then((data) => {
-        const formattedQues = data.results.map((q) => {
-          const options = shuffleArray([...q.incorrect_answers, q.correct_answer]);
-          // const randomIdx = Math.floor(Math.random()*4);
-          // options.splice(randomIdx, 0, q.correct_answer);
+  const handleLogin = async (name, password) => {
+    try {
 
-          return{
-            question: decodeHTML(q.question),
-            options: options.map(decodeHTML),
-            answer: decodeHTML(q.correct_answer)
-          };
-        });
+      clearCloudioTokens();
 
-        const randomized = shuffleArray(formattedQues);
+      const auth = await cloudioAuth(name, password);
 
-        setQuestions(randomized);
-      })
-      .catch((err) => console.error("Error while fetching API:", err));
-  };
+      console.log("Auth result in handleLogin:", auth);
 
-  const decodeHTML = (html) => {
-    const text = document.createElement("textarea");
-    text.innerHTML = html;
-    return text.value;
-  };
+      if (!auth?.token) {
+        throw new Error("No authentication token returned from CloudIO.");
+      }
 
-  const shuffleArray = (array) => {
-    const shuffled = [...array];
-    for(let i = shuffled.length - 1; i>0; i--){
-      const j = Math.floor(Math.random() * (i+1)); 
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      console.log("Authentication token received");
+
+
+      const userObj = {
+        name,
+        token: auth.token,
+        jwt: auth.jwt,
+        csrf: auth.csrf,
+        x: auth.x
+      };
+
+      console.log("User object being stored:", userObj);
+
+      setCloudioTokens(auth.token, auth.csrf);
+
+      login(userObj);
+
+      return userObj;
+    } catch (err) {
+      console.error("Login error:", err);
+      throw err;
     }
-    return shuffled;
   };
 
-  if (questions.length === 0) {
-    return <div>Loading questions....</div>;
+  const handleLogout = () => {
+    clearCloudioTokens();
+  };
+
+  if (loading) {
+    return (
+      <Container maxWidth="sm" sx={{ textAlign: "center", marginTop: 7.5 }}>
+        <Box display="flex" alignItems="center" justifyContent="center" mb={4}>
+          <FontAwesomeIcon
+            icon={faBrain}
+            size="3x"
+            style={{ marginRight: 10, color: "#1976d2" }}
+          />
+          <Typography variant="h3" fontWeight="bold" color="primary">
+            Quizlet
+          </Typography>
+        </Box>
+        <Typography variant="h6">Loading...</Typography>
+      </Container>
+    );
   }
 
-  const handleStartQuiz = () => {
-    setShowStartPage(false);
-  };
-  const currentQuestion = questions[currentIndex];
-
-  const handleAnswerClick = (option) => {
-    if (selectedOption !== null) return;
-    setSelectedOption(option);
-
-    if (option === currentQuestion.answer) {
-      setScore(score + 1);
-    }
-  };
-
-  const handleNextClick = () => {
-    const nextIndex = currentIndex + 1;
-    if (nextIndex < questions.length) {
-      setCurrentIndex(nextIndex);
-      setSelectedOption(null);
-    } else {
-      setShowResult(true);
-    }
-  };
-
-  const handleRestart = () => {
-    setCurrentIndex(0);
-    setScore(0);
-    setShowResult(false);
-    setSelectedOption(null);
-    setShowStartPage(true);
-    formatted();
-  };
-
   return (
-    <div className="App">
-      <h1 className="abc">Quizlet🧠</h1>
-      {showStartPage ? (
-        <WelcomePage 
-          handleStartQuiz={handleStartQuiz}
+    <Container maxWidth="sm" sx={{ textAlign: "center", marginTop: 7.5 }}>
+      <Box display="flex" alignItems="center" justifyContent="center" mb={4}>
+        <FontAwesomeIcon
+          icon={faBrain}
+          size="3x"
+          style={{ marginRight: 10, color: "#1976d2" }}
         />
-      ) : showResult ? (
-        <ShowResult
-          score={score}
-          handleRestart={handleRestart}
-          len={questions.length}
+        <Typography variant="h3" fontWeight="bold" color="primary">
+          Quizlet
+        </Typography>
+      </Box>
+
+      <Routes> 
+        <Route 
+          path="/login" 
+          element={
+            user ? <Navigate to="/welcome" replace /> : <LoginPage onLogin={handleLogin} />
+          } 
         />
-      ) : (
-        <StartQuiz
-          currentIndex={currentIndex}
-          len={questions.length}
-          currentQuestion={currentQuestion}
-          selectedOption={selectedOption}
-          handleAnswerClick={handleAnswerClick}
-          handleNextClick={handleNextClick}
+
+        <Route
+          path="/welcome"
+          element={
+            user ? <WelcomePage onLogout={handleLogout} /> : <Navigate to="/login" replace />
+          }
         />
-      )}
-    </div>
+
+        <Route
+          path="/create"
+          element={
+            user ? <CreateQuizPage /> : <Navigate to="/login" replace />
+          }
+        />
+
+        <Route
+          path="/quiz/:quizId"
+          element={
+            user ? <QuizPage /> : <Navigate to="/login" replace />
+          }
+        />
+
+        <Route
+          path="/default-quiz"
+          element={
+            user ? <QuizPageDefault /> : <Navigate to="/login" replace />
+          }
+        />
+
+        <Route
+          path="/my-quizzes"
+          element={
+            user ? <UserQuizPage /> : <Navigate to="/login" replace />
+          }
+        />
+
+        <Route
+          path="/"
+          element={<Navigate to={user ? "/welcome" : "/login"} replace />}
+        />
+        
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes> 
+    </Container>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <UserProvider>
+        <AppContent />
+      </UserProvider>
+    </Router>
   );
 }
 
 export default App;
+
+
+
