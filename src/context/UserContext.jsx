@@ -38,7 +38,7 @@ export const UserProvider = ({ children }) => {
     localStorage.removeItem('cloudio_csrf');
     sessionStorage.removeItem('cloudio_tokens');
     
-    // console.log(' logged out ');
+    // console.log('logged out');
   };
 
   

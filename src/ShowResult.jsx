@@ -1,4 +1,3 @@
-// ShowResult.jsx
 import { Box, Typography, Button } from "@mui/material";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -8,7 +7,8 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "./context/UserContext";
-import { clearCloudioTokens } from "./cloudioApi";
+import { logoutUser } from "./cloudioApi";
+//  import { user } from "./UserQuizPage";
 
 const ShowResult = ({
   score,
@@ -18,11 +18,19 @@ const ShowResult = ({
   selectedAnswers = [],
 }) => {
   const navigate = useNavigate();
-  const { logout } = useUser();
+  const { user, logout } = useUser();
 
-  const handleLogout = () => {
-    clearCloudioTokens();
-    logout();
+  const handleLogout = async () => {
+    try {
+      await logoutUser(user);
+      logout();
+      navigate("/login");
+    } catch (err) {
+      console.error("Logout error:", err);
+
+      logout();
+      navigate("/login");
+    }
   };
 
   return (

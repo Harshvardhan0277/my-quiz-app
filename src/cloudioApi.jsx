@@ -2,7 +2,7 @@ import { ulid } from "ulid";
 
 const AUTH_URL = "https://dev.cloudio.io/v1/auth";
 const API_URL = "https://dev.cloudio.io/v1/api";
-// const API_KEY = "01KAA533E6244AD6G9SJZ17R"; 
+
 
 let jwt = null;
 let csrf = null;  
@@ -177,6 +177,132 @@ function getCurrentTokens() {
   return { jwt, csrf };
 }
 
+async function deleteQuiz (quizId, user) {
+  if (!quizId) throw new Error("Missing quiz id");
+  if (!user?.x || !user?.jwt) {
+    throw new Error("User session missing. Please login again.");
+  }
+
+  try {
+
+    const fetchBody = {
+      QuizletUserQuizAlias: {
+        ds: "QuizletUserQuiz",
+        query: {
+          filter: [{ id: { is: Number(quizId) } }],
+          projection: {
+            id: 1,
+            quizId: 1,
+            username: 1,
+            lastResult: 1,
+            creationDate: 1,
+            createdBy: 1,
+            lastUpdateDate: 1,
+            lastUpdatedBy: 1
+          },
+          limit: 1,
+          offset: 0,
+        },
+      },
+    };
+
+    console.log("Delete Request Body:", JSON.stringify(fetchBody, null, 2));
+
+    const fetchRes = await fetch(
+      `https://dev.cloudio.io/v1/api?x=${encodeURIComponent(user.x)}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Application": "training",
+          Authorization: user.jwt,
+        },
+        body: JSON.stringify(fetchBody),
+      }
+    );
+
+    if (!fetchRes.ok) {
+      const txt = await fetchRes.text().catch(() => "");
+      throw new Error(`Failed to fetch quiz for deletion: ${txt || fetchRes.status}`);
+    }
+
+    const fetchJson = await fetchRes.json();
+    const row = fetchJson?.data?.QuizletUserQuiz?.data?.[0] || 
+                fetchJson?.data?.QuizletUserQuizAlias?.data?.[0];
+    
+    if (!row) throw new Error("Quiz not found on server");
+
+    console.log("Fetched quiz for deletion:", row);
+
+    const deleteData = {
+      _rs: "D",  
+      id: row.id, 
+      lastUpdateDate: row.lastUpdateDate
+    };
+
+    const deleteBody = {
+      QuizletUserQuizAlias: {
+        ds: "QuizletUserQuiz",
+        data: [deleteData],
+      },
+    };
+
+    console.log("Delete Request Body:", JSON.stringify(deleteBody, null, 2));
+
+    const deleteRes = await fetch(
+      `https://dev.cloudio.io/v1/api?x=${encodeURIComponent(user.x)}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Application": "training",
+          Authorization: user.jwt,
+        },
+        body: JSON.stringify(deleteBody),
+      }
+    );
+
+    if (!deleteRes.ok) {
+      const txt = await deleteRes.text().catch(() => "");
+      throw new Error(`Delete failed: ${txt || deleteRes.status}`);
+    }
+
+    const deleteJson = await deleteRes.json();
+    
+    if (deleteJson?.status && deleteJson.status !== "OK") {
+      throw new Error(deleteJson?.message ?? deleteJson?.title ?? "Delete failed");
+    }
+
+    return deleteJson;
+
+  } catch (error) {
+    console.error("DELETE API Error:", error);
+    console.error("DELETE API Error Response:", error.response?.data);
+    throw error;
+  }
+};
+
+const logoutUser = async (user) => {
+  if (!user?.x) return;
+
+  try {
+    const response = await fetch(`https://dev.cloudio.io/v1/signout?x=${encodeURIComponent(user.x)}`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "X-Application": "SignIn",
+        "Content-Type": "application/json",
+      },
+    });
+    
+    console.log("Logout API Response:", response);
+    return response;
+  } catch (err) {
+    console.error("Signout error:", err);
+    throw err;
+  }
+};
+
 export {
   cloudioAuth,
   cloudioQuery,
@@ -184,4 +310,6 @@ export {
   setCloudioTokens,
   clearCloudioTokens,
   getCurrentTokens,
+  deleteQuiz,
+  logoutUser
 };
